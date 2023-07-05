@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.*
 import android.os.Bundle
 import android.os.IBinder
+import android.preference.PreferenceManager
 import android.text.TextUtils
 import android.util.Log
 import android.view.View
@@ -14,20 +15,15 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.LogUtils
-import com.blankj.utilcode.util.NetworkUtils
 import com.blankj.utilcode.util.ToastUtils
 import com.eurigo.websocketlib.DisConnectReason
-import com.eurigo.websocketlib.IWsListener
 import com.eurigo.websocketlib.WsClient
-import com.eurigo.websocketlib.WsManager
-import com.eurigo.websocketlib.util.ThreadUtils.runOnUiThread
+import com.eurigo.websocketutils.okhttp.WebSocketHandler
 import com.eurigo.websocketutils.service.JWebSocketClient
 import com.eurigo.websocketutils.service.JWebSocketClientService
-import org.java_websocket.WebSocket
+import com.eurigo.websocketutils.utils.EVENT_NET_WORK
+import com.eurigo.websocketutils.utils.LiveDataBus
 import org.java_websocket.framing.Framedata
-import org.java_websocket.handshake.ClientHandshake
-import org.java_websocket.server.WebSocketServer
-import java.net.InetSocketAddress
 
 class Main1Activity : AppCompatActivity(), View.OnClickListener {
     private var mAdapter: LogAdapter? = null
@@ -40,6 +36,22 @@ class Main1Activity : AppCompatActivity(), View.OnClickListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         initView()
+        //        startLocalServer();
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .edit()
+            .putInt("index", 2)
+            .apply()
+
+
+        LiveDataBus.with<Any>(EVENT_NET_WORK).observe(this) { aBoolean: Any ->
+            if (aBoolean as Boolean) {
+                if (!isServiceConnection) {
+                    //绑定服务
+                    bindService()
+                    doRegisterReceiver()
+                }
+            }
+        }
     }
 
     private fun initView() {
@@ -127,7 +139,7 @@ class Main1Activity : AppCompatActivity(), View.OnClickListener {
     }
 
 
-
+   var isServiceConnection = false
     private var client: JWebSocketClient? = null
     private var binder: JWebSocketClientService.JWebSocketClientBinder? = null
     private var jWebSClientService: JWebSocketClientService? = null
@@ -138,10 +150,12 @@ class Main1Activity : AppCompatActivity(), View.OnClickListener {
             jWebSClientService = binder?.service
             client = jWebSClientService?.client
             Log.e("TAG", "onServiceConnected")
+            isServiceConnection = true
         }
 
         override fun onServiceDisconnected(componentName: ComponentName?) {
             Log.e("TAG", "服务与活动成功断开")
+            isServiceConnection = false
         }
     }
 
@@ -179,9 +193,11 @@ class Main1Activity : AppCompatActivity(), View.OnClickListener {
 
     override fun onResume() {
         super.onResume()
-        //绑定服务
-        bindService()
-        doRegisterReceiver()
+        if (!isServiceConnection) {
+            //绑定服务
+            bindService()
+            doRegisterReceiver()
+        }
     }
 
     override fun onStop() {

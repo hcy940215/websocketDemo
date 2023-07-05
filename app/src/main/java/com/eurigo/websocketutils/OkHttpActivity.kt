@@ -2,6 +2,7 @@ package com.eurigo.websocketutils
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.preference.PreferenceManager
 import android.text.TextUtils
 import android.view.View
 import android.widget.Button
@@ -12,8 +13,14 @@ import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.LogUtils
 import com.blankj.utilcode.util.ToastUtils
 import com.eurigo.websocketlib.WsClient
+import com.eurigo.websocketlib.WsManager
+import com.eurigo.websocketutils.okhttp.ConnectStatus
 import com.eurigo.websocketutils.okhttp.WebSocketCallBack
 import com.eurigo.websocketutils.okhttp.WebSocketHandler
+import com.eurigo.websocketutils.utils.EVENT_HEART
+import com.eurigo.websocketutils.utils.EVENT_NET_WORK
+import com.eurigo.websocketutils.utils.LiveDataBus
+import com.eurigo.websocketutils.utils.LiveDataBus.with
 import org.java_websocket.framing.Framedata
 
 class OkHttpActivity : AppCompatActivity(), View.OnClickListener {
@@ -35,14 +42,22 @@ class OkHttpActivity : AppCompatActivity(), View.OnClickListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .edit()
+            .putInt("index", 1)
+            .apply()
+
+        PreferenceManager.getDefaultSharedPreferences(this).getInt("index", 0)
         initView()
+
         var substring = DeviceIdUtil.getDeviceId(this)
         if ((substring.length > 10)) {
             substring = substring.substring(0, 10)
         }
-        val url = "wss://ads.hfyuwo.com/webSocketServers/$substring"
+        val url = "wss://ads.hfyuwo.com/webSocketServers/339D686272"
         webSocketHandler = WebSocketHandler.getInstance(url)
-        connectWebSocket()
+
         webSocketHandler.setSocketIOCallBack(object : WebSocketCallBack {
             override fun onOpen() {
                 onConnected()
@@ -60,6 +75,31 @@ class OkHttpActivity : AppCompatActivity(), View.OnClickListener {
                 onError(t)
             }
         })
+
+        LiveDataBus.with<Any>(EVENT_NET_WORK).observe(this) { aBoolean: Any ->
+            if (aBoolean as Boolean) {
+                if (!(::webSocketHandler.isInitialized)) {
+                    connectWebSocket()
+                }
+            }
+        }
+
+        LiveDataBus.with<Any>(EVENT_HEART).observe(this) { aBoolean: Any? ->
+            if (!(::webSocketHandler.isInitialized)) {
+                var substring = DeviceIdUtil.getDeviceId(this)
+                if ((substring.length > 10)) {
+                    substring = substring.substring(0, 10)
+                }
+                val url = "wss://ads.hfyuwo.com/webSocketServers/339D686272"
+                webSocketHandler = WebSocketHandler.getInstance(url)
+                return@observe
+            }
+
+            if (webSocketHandler.status==ConnectStatus.Open) {
+                webSocketHandler.send(getEditText(etMsg))
+            }
+        }
+
     }
 
     private fun initView() {
@@ -136,6 +176,11 @@ class OkHttpActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     fun onError(ex: Throwable) {
+        runOnUiThread {
+            mAdapter!!.addDataAndScroll("onError ${ex.printStackTrace()}", true)
+            btnConnect!!.isEnabled = true
+            btnClose!!.isEnabled = false
+        }
         LogUtils.e("客户端日志", "连接失败", ex.message)
     }
 

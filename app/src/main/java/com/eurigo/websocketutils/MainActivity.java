@@ -2,6 +2,7 @@ package com.eurigo.websocketutils;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
@@ -14,6 +15,7 @@ import com.eurigo.websocketlib.DisConnectReason;
 import com.eurigo.websocketlib.IWsListener;
 import com.eurigo.websocketlib.WsClient;
 import com.eurigo.websocketlib.WsManager;
+import com.eurigo.websocketutils.utils.LiveDataBus;
 
 import org.java_websocket.WebSocket;
 import org.java_websocket.framing.Framedata;
@@ -28,6 +30,9 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import static com.eurigo.websocketutils.utils.ConstantKt.EVENT_HEART;
+import static com.eurigo.websocketutils.utils.ConstantKt.EVENT_NET_WORK;
 
 /**
  * @author Eurigo
@@ -55,12 +60,29 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         initView();
 //        startLocalServer();
 
-        String substring = DeviceIdUtil.getDeviceId(this);
-        if ((substring.length() > 10)) {
-            substring = substring.substring(0, 10);
-        }
-        String url = "wss://ads.hfyuwo.com/webSocketServers/" + substring;
-        connectWebSocket(url);
+        PreferenceManager.getDefaultSharedPreferences(this)
+                .edit()
+                .putInt("index", 0)
+                .apply();
+
+//        connectWebSocket();
+
+        LiveDataBus.INSTANCE.with(EVENT_NET_WORK).observe(this, aBoolean -> {
+            if ((Boolean) aBoolean) {
+                connectWebSocket();
+            }
+        });
+
+        LiveDataBus.INSTANCE.with(EVENT_HEART).observe(this, aBoolean -> {
+            if (WsManager.getInstance()==null) {
+                connectWebSocket();
+                return;
+            }
+
+            if (WsManager.getInstance().isConnected()) {
+                WsManager.getInstance().send(getEditText(etMsg));
+            }
+        });
     }
 
     private void initView() {
@@ -98,7 +120,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     public void onClick(View view) {
         switch (view.getId()) {
             case R.id.btn_connect:
-                connectWebSocket(getEditText(etAddress));
+                connectWebSocket();
                 break;
             case R.id.btn_close:
                 WsManager.getInstance().disConnect();
@@ -123,10 +145,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     /**
      * 连接WebSocket
      */
-    private void connectWebSocket(String address) {
+    private void connectWebSocket() {
+        String substring = DeviceIdUtil.getDeviceId(this);
+        if ((substring.length() > 10)) {
+            substring = substring.substring(0, 10);
+        }
+
+        String urlStr = "wss://ads.hfyuwo.com/webSocketServers/" + substring;
         // 构造一个默认WebSocket客户端
         WsClient wsClient = new WsClient.Builder()
-                .setServerUrl(address)
+                .setServerUrl(urlStr)
                 .setListener(this)
                 .setPingInterval(30)
                 .build();

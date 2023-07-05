@@ -16,6 +16,8 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.net.ssl.SSLParameters;
+
 /**
  * @author Eurigo
  * Created on 2022/3/29 17:14
@@ -155,6 +157,12 @@ public class WsClient extends WebSocketClient {
 
     public boolean isReconnectTaskRun() {
         return isReconnectTaskRun;
+    }
+
+
+    @Override
+    protected void onSetSSLParameters(SSLParameters sslParameters) {
+//        super.onSetSSLParameters(sslParameters);
     }
 
     @Override
